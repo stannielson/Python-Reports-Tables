@@ -3,7 +3,7 @@ Relies on and extends matplotlib with dependencies on PIL and PyPDF2 in
 Python 3 environments.
 
 Author(s):  Stanton K. Nielson
-Date:       November 8, 2022
+Date:       November 7, 2022
 Version:    1.0
 """
 
