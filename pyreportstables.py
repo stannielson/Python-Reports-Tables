@@ -3,8 +3,8 @@ Relies on and extends matplotlib with dependencies on PIL and PyPDF2 in
 Python 3 environments.
 
 Author(s):  Stanton K. Nielson
-Date:       November 7, 2022
-Version:    1.0
+Date:       January 17, 2023
+Version:    1.1
 
 -------------------------------------------------------------------------------
 This is free and unencumbered software released into the public domain.
@@ -806,7 +806,7 @@ class Text(object):
         """
         units = Page.LAYOUT.bbox.width / Page.WIDTH
         if width is None: width = Page.TypeArea.width()
-        return int(math.floor((units * width)))
+        return int(math.ceil((units * width)))
 
     @classmethod
     def _gettextbbox(cls, cell):
