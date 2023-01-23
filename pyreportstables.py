@@ -3,8 +3,8 @@ Relies on and extends matplotlib with dependencies on PIL and PyPDF2 in
 Python 3 environments.
 
 Author(s):  Stanton K. Nielson
-Date:       January 17, 2023
-Version:    1.1
+Date:       January 23, 2023
+Version:    1.2
 
 -------------------------------------------------------------------------------
 This is free and unencumbered software released into the public domain.
@@ -1672,9 +1672,7 @@ class Table(_BaseClass):
     def nextpage(self):
         """Advances the table to the next page"""
         self._rows, self._overflow = self._overflow, list()
-        if self._rows:
-            self._buildforstructure()
-            self._buildforpage()
+        if self._rows: self._build()
         return
 
     def remove(self):
