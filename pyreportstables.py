@@ -3,8 +3,8 @@ Relies on and extends matplotlib with dependencies on PIL and PyPDF2 in
 Python 3 environments.
 
 Author(s):  Stanton K. Nielson
-Date:       January 23, 2023
-Version:    1.2
+Date:       February 13, 2023
+Version:    1.3
 
 -------------------------------------------------------------------------------
 This is free and unencumbered software released into the public domain.
@@ -1141,16 +1141,18 @@ class _Cell(_BaseClass):
         txtobj._renderer = Page.RENDERER
         if self.get('wrap'): txtobj.set(text=txtobj._get_wrapped_text())
         bbox = txtobj.get_window_extent(Page.RENDERER)
-        pad = 2 * self._padding / 72
-        txtheight, txtwidth = bbox.height / Page.DPI, bbox.width / Page.DPI
+        cellwidth = math.ceil(self._width * Page.DPI)
+        cellheight = math.ceil(self._height * Page.DPI)
+        pad = math.floor(Page.DPI * 2 * self._padding / 72)
+        txtheight, txtwidth = math.floor(bbox.height), math.floor(bbox.width)
         padheight, padwidth = txtheight + pad, txtwidth + pad
-        if padwidth > self._width:
+        if padwidth > cellwidth:
             error = 'An error has occurred resulting from a cell {}. '\
                     'The cell value exceeds the cell width. Please '\
                     'revise settings in cells to prevent this error and '\
                     'proceed.'.format(self)
             raise Exception(error)
-        if padheight > self._height:
+        if padheight > cellheight:
             error = 'An error has occurred resulting from a cell {}. '\
                     'The cell value exceeds the cell height. Please '\
                     'revise settings in cells to prevent this error and '\
