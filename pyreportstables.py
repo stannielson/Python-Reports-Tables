@@ -3,8 +3,8 @@ Relies on and extends matplotlib with dependencies on PIL and PyPDF2 in
 Python 3 environments.
 
 Author(s):  Stanton K. Nielson
-Date:       February 13, 2023
-Version:    1.3
+Date:       July 10, 2023
+Version:    1.4
 
 -------------------------------------------------------------------------------
 This is free and unencumbered software released into the public domain.
@@ -2015,7 +2015,7 @@ class Table(_BaseClass):
         """Internal method to validate that a cell height does not exceed
         the total height of the table
         """
-        if cell._height <= self._height: return
+        if cell._height <= self._height or self._breakrowvalues: return
         error = 'An error has occurred resulting from a cell {}. '\
                 'The cell height exceeds the table height for the page. '\
                 'Please revise settings in cells to prevent this '\
