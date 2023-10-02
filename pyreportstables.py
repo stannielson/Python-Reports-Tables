@@ -3,8 +3,8 @@ Relies on and extends matplotlib with dependencies on PIL and PyPDF2 in
 Python 3 environments.
 
 Author(s):  Stanton K. Nielson
-Date:       July 10, 2023
-Version:    1.4
+Date:       October 2, 2023
+Version:    1.5
 
 -------------------------------------------------------------------------------
 This is free and unencumbered software released into the public domain.
@@ -39,7 +39,7 @@ from sys import version, version_info
 if version_info.major < 3: 
     raise RuntimeError('Python version {} is not supported'.format(version))
 
-import os, re, math, copy, inspect, tempfile, matplotlib, PIL
+import os, re, math, copy, inspect, tempfile, matplotlib, PIL, textwrap
 from collections.abc import Sequence
 from itertools import product
 from matplotlib import pyplot as plot
@@ -52,6 +52,71 @@ from PyPDF2 import PdfFileMerger, PdfFileReader, PdfFileWriter
 # LOADING OF ALL TRUETYPE SYSTEM FONTS
 for font in font_manager.findSystemFonts(fontpaths=None, fontext='ttf'):
     font_manager.fontManager.addfont(font)
+
+
+# TEXT WRAPPER WITH U+0082 (BREAK PERMITTED HERE)
+class TextWrapper(textwrap.TextWrapper):      
+
+    def _split(self, text):
+        """_split(text : string) -> [string]
+
+        Split the text to wrap into indivisible chunks.  Chunks are
+        not quite the same as words; see _wrap_chunks() for full
+        details.  As an example, the text
+          Look, goof-ball -- use the -b option!
+        breaks into the following chunks:
+          'Look,', ' ', 'goof-', 'ball', ' ', '--', ' ',
+          'use', ' ', 'the', ' ', '-b', ' ', 'option!'
+        if break_on_hyphens is True, or in:
+          'Look,', ' ', 'goof-ball', ' ', '--', ' ',
+          'use', ' ', 'the', ' ', '-b', ' ', option!'
+        otherwise.
+
+        Additionally recognizes U+0082 (BREAK PERMITTED HERE) as
+        a character to split text into chunks
+        """
+        bph = '\x82'
+        text.rstrip(bph)
+        if self.break_on_hyphens is True:
+            base = self.wordsep_re.split(text)
+        else:
+            base = self.wordsep_simple_re.split(text)
+        base = list(i for i in base if i)
+        chunks = list()
+        for c in base:
+            if bph in c:
+                bph_chunks = c.split(bph)
+                spacers = [''] * len(bph_chunks)
+                chunk = list(i for pair in zip(bph_chunks, spacers)
+                             for i in pair)[:-1]
+                if c.endswith(bph): chunk = chunk[:-1]
+                if c.startswith(bph): chunk = chunk[1:]
+                chunks.extend(chunk)
+            elif c: chunks.append(c)
+        return chunks
+
+    def wrap_first(self, text):
+        """Produces the first line of text that will be wrapped, along
+        with the remainder of the text block (if any)
+        """
+        bph = '\x82'
+        wrapped = self.wrap(text)
+        first_line, *remnant = wrapped
+        first_chunks = list()
+        remnants = self._split_chunks(text)
+        if self.fix_sentence_endings:
+            self._fix_sentence_endings(remnants)
+        for i in remnants:
+            first_chunks.append(i)
+            test_lines = self._wrap_chunks(copy.deepcopy(first_chunks))
+            if test_lines: test_line = test_lines[0]
+            else: test_line = None
+            if test_line == first_line: break
+        remnants = remnants[len(first_chunks):]
+        remnants = list(i if i != '' else bph for i in remnants)
+        rest = ''.join(remnants)
+        while rest.startswith(bph): rest = rest[1:]
+        return first_line, rest
 
 
 # METHOD FOR OVERRIDE
@@ -70,37 +135,30 @@ def _get_wrapped_text(self):
     wrapped_lines = []
 
     # New lines in the user's text force a split
-    unwrapped_lines = self.get_text().split('\n')
+    unwrapped_text = self.get_text()
+    if not unwrapped_text: return ''
+    unwrapped_lines = unwrapped_text.split('\n')
     unwrapped_lines = [i.rstrip() for i in unwrapped_lines]# GETS TRUE LINES
 
-    # Now wrap each individual unwrapped line
+    # Using subclass of textwrap.TextWrapper with U+0082 character support
+    wrapper = TextWrapper()
+    bph = '\x82'
+    true_len = lambda t: len(t.replace(bph, ''))
+
+    # Creating a list of wrapped lines, one line at a time
     for unwrapped_line in unwrapped_lines:
-
-        sub_words = unwrapped_line.split(' ')
-        # Remove items from sub_words as we go, so stop when empty
-        while len(sub_words) > 0:
-            if len(sub_words) == 1:
-                # Only one word, so just add it to the end
-                wrapped_lines.append(sub_words.pop(0))
-                continue
-
-            for i in range(2, len(sub_words) + 1):
-                # Get width of all words up to and including here
-                line = ' '.join(sub_words[:i])
-                current_width = self._get_rendered_text_width(line)
-
-                # If all these words are too wide, append all not including
-                # last word
-                if current_width > line_width:
-                    wrapped_lines.append(' '.join(sub_words[:i - 1]))
-                    sub_words = sub_words[i - 1:]
-                    break
-
-                # Otherwise if all words fit in the width, append them all
-                elif i == len(sub_words):
-                    wrapped_lines.append(' '.join(sub_words[:i]))
-                    sub_words = []
-                    break
+        while True:
+            if not unwrapped_line:
+                wrapped_lines.append('')
+                break
+            wrapper.width = true_len(unwrapped_line)
+            first, remnant = wrapper.wrap_first(unwrapped_line)
+            while self._get_rendered_text_width(first) > line_width:
+                wrapper.width -= 1
+                first, remnant = wrapper.wrap_first(unwrapped_line)
+            wrapped_lines.append(first)
+            if not remnant: break
+            unwrapped_line = remnant.lstrip()
     
     return '\n'.join(wrapped_lines)
 
