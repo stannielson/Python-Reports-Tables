@@ -1,10 +1,10 @@
 """module for creating PDF reports with text, images, text boxes, and tables.
-Relies on and extends matplotlib with dependencies on PIL and PyPDF2 in
+Relies on and extends matplotlib 3.6 with dependencies on PIL and PyPDF2 in
 Python 3 environments.
 
 Author(s):  Stanton K. Nielson
-Date:       October 2, 2023
-Version:    1.5
+Date:       October 25, 2023
+Version:    1.6
 
 -------------------------------------------------------------------------------
 This is free and unencumbered software released into the public domain.
@@ -95,28 +95,7 @@ class TextWrapper(textwrap.TextWrapper):
             elif c: chunks.append(c)
         return chunks
 
-    def wrap_first(self, text):
-        """Produces the first line of text that will be wrapped, along
-        with the remainder of the text block (if any)
-        """
-        bph = '\x82'
-        wrapped = self.wrap(text)
-        first_line, *remnant = wrapped
-        first_chunks = list()
-        remnants = self._split_chunks(text)
-        if self.fix_sentence_endings:
-            self._fix_sentence_endings(remnants)
-        for i in remnants:
-            first_chunks.append(i)
-            test_lines = self._wrap_chunks(copy.deepcopy(first_chunks))
-            if test_lines: test_line = test_lines[0]
-            else: test_line = None
-            if test_line == first_line: break
-        remnants = remnants[len(first_chunks):]
-        remnants = list(i if i != '' else bph for i in remnants)
-        rest = ''.join(remnants)
-        while rest.startswith(bph): rest = rest[1:]
-        return first_line, rest
+    def split_text(self, text): return self._split(text)
 
 
 # METHOD FOR OVERRIDE
@@ -142,25 +121,29 @@ def _get_wrapped_text(self):
 
     # Using subclass of textwrap.TextWrapper with U+0082 character support
     wrapper = TextWrapper()
-    bph = '\x82'
-    true_len = lambda t: len(t.replace(bph, ''))
 
     # Creating a list of wrapped lines, one line at a time
     for unwrapped_line in unwrapped_lines:
-        while True:
-            if not unwrapped_line:
-                wrapped_lines.append('')
-                break
-            wrapper.width = true_len(unwrapped_line)
-            first, remnant = wrapper.wrap_first(unwrapped_line)
-            while self._get_rendered_text_width(first) > line_width:
-                wrapper.width -= 1
-                first, remnant = wrapper.wrap_first(unwrapped_line)
-            wrapped_lines.append(first)
-            if not remnant: break
-            unwrapped_line = remnant.lstrip()
-    
-    return '\n'.join(wrapped_lines)
+        text_chunks = wrapper.split_text(unwrapped_line)
+        while len(text_chunks) > 0:
+            for i in range(len(text_chunks) + 1):
+                line = ''.join(text_chunks[:i])
+                line = line.rstrip()
+                current_width = self._get_rendered_text_width(line)
+                if current_width > line_width:
+                    wrapped_line = ''.join(text_chunks[:i - 1])
+                    wrapped_line = wrapped_line.rstrip()
+                    wrapped_lines.append(wrapped_line)
+                    text_chunks = text_chunks[i - 1:]
+                    break
+                elif i == len(text_chunks):
+                    wrapped_line = ''.join(text_chunks[:i])
+                    wrapped_line = wrapped_line.rstrip()
+                    wrapped_lines.append(wrapped_line)
+                    text_chunks = list()
+                    break
+    wrapped_text = '\n'.join(wrapped_lines)
+    return wrapped_text
 
 
 # OVERRIDING METHOD
@@ -499,10 +482,9 @@ class Page(object):
     @classmethod
     def clear(cls):
         """Clears the current page"""
-        if cls.CONTAINER is not None:
-            cls.CONTAINER.clear()
-            cls.LAYOUT = cls.CONTAINER.add_subplots()
-            plot.subplots_adjust(0, 0, 1, 1, 0, 0)
+        if cls.LAYOUT is not None:
+            cls.LAYOUT.clear()
+            cls.LAYOUT.axis('off')
         else: cls.create(width=cls.WIDTH, height=cls.HEIGHT)
         return
 
@@ -515,6 +497,7 @@ class Page(object):
         cls.CONTAINER, cls.LAYOUT = plot.subplots()
         plot.subplots_adjust(0, 0, 1, 1, 0, 0)
         cls.CONTAINER.patch.set_visible(False)
+        cls.LAYOUT.axis('off')
         cls._setpagesize(size, width, height)
         cls.RENDERER = cls.CONTAINER.canvas.get_renderer()
         return
@@ -1189,7 +1172,7 @@ class _Cell(_BaseClass):
             renderedtext._get_wrap_line_width = wrapfunc
         self._rendered = rendered
         if table:
-            table._renderarea.add_patch(self._rendered)
+            table._renderarea.add_artist(self._rendered)
             self._validate(self._rendered)
         return
 
@@ -1274,7 +1257,7 @@ class _Edges(_BaseClass):
         rendered = BaseCell(**params)
         rendered.set(**self._edgesetparams)
         self._rendered = rendered
-        if table: table._renderarea.add_patch(self._rendered)
+        if table: table._renderarea.add_artist(self._rendered)
         return
 
     def __copy__(self):
