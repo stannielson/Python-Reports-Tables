@@ -3,8 +3,8 @@ Relies on and extends matplotlib 3.6 with dependencies on PIL and PyPDF2 in
 Python 3 environments.
 
 Author(s):  Stanton K. Nielson
-Date:       October 25, 2023
-Version:    1.6
+Date:       December 12, 2023
+Version:    1.61
 
 -------------------------------------------------------------------------------
 This is free and unencumbered software released into the public domain.
@@ -2111,8 +2111,15 @@ class Table(_BaseClass):
     def _settablepages(self):
         """Internal method to determine total number of pages for the table
         """
-        height = self._gettableheight()
-        self._tablepages = int(math.ceil(height / self._height))
+        count, rows, overflow = 1, list(self._rows), list(self._overflow)
+        delay = self._delayrender
+        self._delayrender = True
+        while self._overflow:
+            count += 1
+            self.nextpage()
+        self._rows, self._overflow = rows, overflow
+        self._delayrender = delay
+        self._tablepages = count
         return
 
     def _gettableheight(self):
