@@ -3,8 +3,8 @@ Relies on and extends matplotlib 3.6 with dependencies on PIL and PyPDF2 in
 Python 3 environments.
 
 Author(s):  Stanton K. Nielson
-Date:       December 12, 2023
-Version:    1.61
+Date:       January 10, 2024
+Version:    1.62
 
 -------------------------------------------------------------------------------
 This is free and unencumbered software released into the public domain.
@@ -1705,7 +1705,9 @@ class Table(_BaseClass):
                     columnindex, override_edges, **properties)
         properties = dict((k, v) for k, v in properties.items() if k not in
                           Properties.NORESIZE)
-        if properties: self._build()
+        if properties:
+            self._tablepages = None
+            self._build()
         return
 
     def ismultipage(self):
@@ -1734,7 +1736,18 @@ class Table(_BaseClass):
     @property
     def pages(self):
         """Returns the number of pages for the table"""
+        if self._tablepages is None:
+            count = 1
+            self._build()
+            all_rows = copy.copy(self._allrows)
+            while self._overflow:
+                count += 1
+                self.nextpage()
+            self._rows = all_rows
+            self._build()
+            self._tablepages = count
         return self._tablepages
+
 
     def _getformatindex(self, row_index_or_index_range, multipage=False):
         """Returns callable start/stop values for use in index-based row
@@ -1810,7 +1823,6 @@ class Table(_BaseClass):
         self._setpositions()
         self._padrows()
         self._setbreak()
-        self._settablepages()
         if not self._delayrender: self._render()
         return
 
@@ -2106,20 +2118,6 @@ class Table(_BaseClass):
                 totalheight += self._rowheight
                 self._rows.append(blank.copy())
         self._indexrows()
-        return
-
-    def _settablepages(self):
-        """Internal method to determine total number of pages for the table
-        """
-        count, rows, overflow = 1, list(self._rows), list(self._overflow)
-        delay = self._delayrender
-        self._delayrender = True
-        while self._overflow:
-            count += 1
-            self.nextpage()
-        self._rows, self._overflow = rows, overflow
-        self._delayrender = delay
-        self._tablepages = count
         return
 
     def _gettableheight(self):
